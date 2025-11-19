@@ -51,64 +51,6 @@ function App() {
     setTimeout(() => setToast(null), 5000);
   };
 
-   const handleGenerateImage = async () => {
-  if (!prompt.trim()) {
-    showToast('Please enter a prompt first', 'error');
-    return;
-  }
-  
-  setLoading(true);
-  setError('');
-  setGenerationStatus('');
-  setProgress('Starting image generation...');
-  
-  try {
-    const result = await generateImageWithGemini(prompt, (message) => {
-      setProgress(message);
-    });
-    
-    // 🎯 Sirf tabhi image set karo jab actually success aaye
-    if (result.success) {
-      setGeneratedImage(result.imageUrl);
-      setGeneratedScore(calculateViralityScore(result.imageUrl, prompt, true));
-      setCurrentStep(2);
-      setGenerationStatus('ai_success');
-      
-      const ragAnalysis = await enhancedImageAnalysis('generated', prompt);
-      showToast(ragAnalysis, 'success');
-    }
-    
-  } catch (error) {
-    console.error('Error in image generation:', error);
-    
-    if (error.message === 'MODEL_OVERLOADED') {
-      showToast('AI model is currently overloaded. Please try again later.', 'error');
-      setError('AI service is busy. Please try again later.');
-      setGenerationStatus('error');
-    } else if (error.message === 'NO_WORKING_MODEL') {
-      showToast('No working AI models available. Please try again later.', 'error');
-      setError('No AI models available. Please try again later.');
-      setGenerationStatus('error');
-    } else if (error.message === 'NO_DESCRIPTION_GENERATED') {
-      showToast('AI failed to generate image description. Please try again.', 'error');
-      setError('AI failed to generate description. Please try again.');
-      setGenerationStatus('error');
-    } else if (error.message.includes('API_ERROR')) {
-      const errorMsg = error.message.replace('API_ERROR: ', '');
-      showToast(`AI service error: ${errorMsg}`, 'error');
-      setError('Failed to connect to AI service. Please try again.');
-      setGenerationStatus('error');
-    } else {
-      showToast('Failed to generate image. Please try again.', 'error');
-      setError('Failed to generate image. Please try again.');
-      setGenerationStatus('error');
-    }
-  }
-  
-  setLoading(false);
-  setProgress('');
-};
-
   const handleImageUpload = (imageUrl) => {
     const imageId = saveUploadedImage(imageUrl);
     setUploadedImage(imageUrl);
@@ -126,6 +68,63 @@ function App() {
     };
     
     analyzeUpload();
+  };
+
+  const handleGenerateImage = async () => {
+    if (!prompt.trim()) {
+      showToast('Please enter a prompt first', 'error');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    setGenerationStatus('');
+    setProgress('Starting image generation...');
+    
+    try {
+      const result = await generateImageWithGemini(prompt, (message) => {
+        setProgress(message);
+      });
+      
+      if (result.success) {
+        setGeneratedImage(result.imageUrl);
+        setGeneratedScore(calculateViralityScore(result.imageUrl, prompt, true));
+        setCurrentStep(3);
+        setGenerationStatus('ai_success');
+        
+        const ragAnalysis = await enhancedImageAnalysis('generated', prompt);
+        showToast(ragAnalysis, 'success');
+      }
+      
+    } catch (error) {
+      console.error('Error in image generation:', error);
+      
+      if (error.message === 'MODEL_OVERLOADED') {
+        showToast('AI model is currently overloaded. Please try again later.', 'error');
+        setError('AI service is busy. Please try again later.');
+        setGenerationStatus('error');
+      } else if (error.message === 'NO_WORKING_MODEL') {
+        showToast('No working AI models available. Please try again later.', 'error');
+        setError('No AI models available. Please try again later.');
+        setGenerationStatus('error');
+      } else if (error.message === 'NO_DESCRIPTION_GENERATED') {
+        showToast('AI failed to generate image description. Please try again.', 'error');
+        setError('AI failed to generate description. Please try again.');
+        setGenerationStatus('error');
+      } else if (error.message.includes('API_ERROR')) {
+        const errorMsg = error.message.replace('API_ERROR: ', '');
+        showToast(`AI service error: ${errorMsg}`, 'error');
+        setError('Failed to connect to AI service. Please try again.');
+        setGenerationStatus('error');
+      } else {
+        showToast('Failed to generate image. Please try again.', 'error');
+        setError('Failed to generate image. Please try again.');
+        setGenerationStatus('error');
+      }
+    }
+    
+    setLoading(false);
+    setProgress('');
   };
 
   const clearAll = () => {
@@ -163,7 +162,7 @@ function App() {
             Image Virality Analyzer
           </h1>
           <p className="text-xl text-gray-600">
-            Generate AI images and compare their virality potential
+            Upload your image and compare with AI generated images
           </p>
         </div>
 
@@ -177,7 +176,7 @@ function App() {
               }`}>
                 {getStepStatus(1) === 'completed' ? <CheckCircle2 className="h-5 w-5" /> : '1'}
               </div>
-              <span className="font-semibold">Generate AI Image</span>
+              <span className="font-semibold">Upload Image</span>
             </div>
 
             <div className={`flex-1 h-0.5 mx-4 ${
@@ -192,7 +191,7 @@ function App() {
               }`}>
                 {getStepStatus(2) === 'completed' ? <CheckCircle2 className="h-5 w-5" /> : '2'}
               </div>
-              <span className="font-semibold">Upload Image</span>
+              <span className="font-semibold">Generate AI Image</span>
             </div>
 
             <div className={`flex-1 h-0.5 mx-4 ${
@@ -230,8 +229,46 @@ function App() {
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <Upload className="h-6 w-6 text-green-500" />
+                Step 1: Upload Your Image
+              </h2>
+              <ImageUploader 
+                onImageUpload={handleImageUpload}
+                title="Upload Image for Analysis"
+                disabled={false}
+              />
+              {!uploadedImage && (
+                <p className="text-sm text-gray-500 mt-3 text-center">
+                  Start by uploading your image for virality analysis
+                </p>
+              )}
+            </div>
+
+            {uploadedImage && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Uploaded Image
+                </h3>
+                <img 
+                  src={uploadedImage} 
+                  alt="Uploaded" 
+                  className="w-full h-64 object-cover rounded-lg shadow-md"
+                />
+                <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-sm text-green-700">
+                    <span className="font-semibold">Image Uploaded Successfully!</span> 
+                    {generatedImage ? ' Now generate AI image for comparison.' : ' Now generate AI image to compare.'}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <Sparkles className="h-6 w-6 text-blue-500" />
-                Step 1: Generate AI Image
+                {uploadedImage ? 'Step 2: Generate AI Image' : 'Generate AI Image'}
               </h2>
               
               <div className="space-y-4">
@@ -267,6 +304,11 @@ function App() {
                   )}
                 </button>
               </div>
+              {!uploadedImage && (
+                <p className="text-sm text-gray-500 mt-3 text-center">
+                  Upload an image first, then generate AI image for comparison
+                </p>
+              )}
             </div>
 
             {generatedImage && generationStatus === 'ai_success' && (
@@ -288,25 +330,25 @@ function App() {
                 
                 <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
                   <p className="text-sm text-green-700">
-                    <span className="font-semibold">AI Image Generated Successfully!</span> Now upload your image for comparison.
+                    <span className="font-semibold">AI Image Generated Successfully!</span> Check virality scores below.
                   </p>
                 </div>
               </div>
             )}
 
-            {(generationStatus === 'fallback' || generationStatus === 'error') && (
+            {generationStatus === 'error' && !generatedImage && (
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <AlertCircle className="h-6 w-6 text-red-500" />
                   <h3 className="text-lg font-semibold text-gray-800">
-                    AI Service Unavailable
+                    AI Generation Failed
                   </h3>
                 </div>
                 
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <p className="text-red-700 text-sm">
-                    <span className="font-semibold">AI image generation is currently unavailable.</span> 
-                    You can still upload your own image to analyze its virality score.
+                    <span className="font-semibold">AI service is currently unavailable.</span> 
+                    You can still analyze your uploaded image's virality score.
                   </p>
                 </div>
 
@@ -318,44 +360,6 @@ function App() {
                   <Sparkles className="h-4 w-4" />
                   Try Again
                 </button>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Upload className="h-6 w-6 text-green-500" />
-                {generatedImage ? 'Step 2: Upload Your Image' : 'Upload Your Image'}
-              </h2>
-              <ImageUploader 
-                onImageUpload={handleImageUpload}
-                title="Upload Image for Analysis"
-                disabled={false}
-              />
-              {!generatedImage && (
-                <p className="text-sm text-gray-500 mt-3 text-center">
-                  You can upload an image even without generating AI image
-                </p>
-              )}
-            </div>
-
-            {uploadedImage && (
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                  Uploaded Image
-                </h3>
-                <img 
-                  src={uploadedImage} 
-                  alt="Uploaded" 
-                  className="w-full h-64 object-cover rounded-lg shadow-md"
-                />
-                <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                  <p className="text-sm text-green-700">
-                    <span className="font-semibold">Image Uploaded Successfully!</span> 
-                    {generatedImage ? ' Check virality scores below.' : ' Analyze its virality potential.'}
-                  </p>
-                </div>
               </div>
             )}
           </div>
@@ -473,18 +477,18 @@ function App() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div className="flex flex-col items-center text-center p-3 bg-white rounded-lg">
                 <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mb-2">1</div>
-                <span className="font-semibold text-blue-700">Generate AI Image</span>
-                <span className="text-blue-600 mt-1">Create AI image or upload your own</span>
+                <span className="font-semibold text-blue-700">Upload Image</span>
+                <span className="text-blue-600 mt-1">Start by uploading your image</span>
               </div>
               <div className="flex flex-col items-center text-center p-3 bg-white rounded-lg">
                 <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mb-2">2</div>
-                <span className="font-semibold text-blue-700">Upload Image</span>
-                <span className="text-blue-600 mt-1">Upload your image for analysis</span>
+                <span className="font-semibold text-blue-700">Generate AI Image</span>
+                <span className="text-blue-600 mt-1">Create AI image for comparison</span>
               </div>
               <div className="flex flex-col items-center text-center p-3 bg-white rounded-lg">
                 <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mb-2">3</div>
-                <span className="font-semibold text-blue-700">Get Virality Score</span>
-                <span className="text-blue-600 mt-1">See how viral your image can be</span>
+                <span className="font-semibold text-blue-700">Compare Scores</span>
+                <span className="text-blue-600 mt-1">See virality comparison results</span>
               </div>
             </div>
           </div>
